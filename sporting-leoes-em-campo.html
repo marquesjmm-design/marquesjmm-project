@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
+<title>Leões em Campo</title>
+<!-- Carrega as fontes "Anton" (títulos) e "Work Sans" (texto normal) do Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ======================================================
+     VARIÁVEIS DE COR (CSS custom properties)
+     Guardam as cores do tema num só sítio para serem
+     reutilizadas em todo o CSS através de var(--nome).
+     ====================================================== */
+  :root{
+    --green: #0E7A3D;
+    --green-deep: #07461F;
+    --green-darker: #052F15;
+    --white: #FBFBF7;
+    --gold: #C9A24B;
+    --gold-dim: #9c7f3a;
+    --ink: #0A1F13;
+    --cream: #F4F2E8;
+    --paper: #FFFFFF;
+    --text: #14231A;
+    --text-dim: #4B5A50;
+    --card-red: #B3122A;
+    --shadow: rgba(6, 30, 16, 0.18);
+    --focus: #2F8F5B;
+  }
+
+  /* Se o sistema operativo/navegador do utilizador estiver em modo escuro,
+     estas variáveis substituem as cores acima automaticamente. */
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper: #0C1B12;
+      --cream: #0F2116;
+      --text: #EAF1EA;
+      --text-dim: #9FB4A6;
+      --shadow: rgba(0,0,0,0.5);
+      --gold: #D8B865;
+    }
+  }
+  /* Caso o HTML tenha explicitamente data-theme="dark" (ex.: via JS),
+     força sempre o tema escuro, independentemente das preferências do sistema. */
+  :root[data-theme="dark"]{
+    --paper: #0C1B12;
+    --cream: #0F2116;
+    --text: #EAF1EA;
+    --text-dim: #9FB4A6;
+    --shadow: rgba(0,0,0,0.5);
+    --gold: #D8B865;
+  }
+
+  /* Reset básico: inclui padding/border na largura total dos elementos
+     e faz a página ocupar sempre 100% da altura do ecrã. */
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background: var(--cream);
+    color: var(--text);
+    font-family: 'Work Sans', system-ui, sans-serif;
+    display:flex;
+    justify-content:center;
+    align-items:flex-start;
+    padding: clamp(16px, 3vw, 40px);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Contentor principal da app: organiza header, HUD e jogo em coluna,
+     com um espaçamento (gap) entre cada bloco. */
+  .app{
+    width:100%;
+    max-width: 560px;
+    display:flex;
+    flex-direction:column;
+    gap: 14px;
+  }
+
+  /* ---------- Cabeçalho (título e subtítulo) ---------- */
+  header{
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+    text-align:center;
+  }
+  .eyebrow{
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    font-weight:700;
+  }
+  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .eyebrow{color:var(--gold);}}
+  :root[data-theme="dark"] .eyebrow{color:var(--gold);}
+
+  h1{
+    font-family:'Anton', 'Work Sans', sans-serif;
+    font-weight:400;
+    font-size: clamp(34px, 8vw, 52px);
+    letter-spacing: 0.01em;
+    margin: 0;
+    color: var(--green);
+    text-wrap: balance;
+  }
+  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) h1{color:#4FCB84;}}
+  :root[data-theme="dark"] h1{color:#4FCB84;}
+
+  .sub{
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  /* ---------- HUD (painel com pontos, vidas e recorde) ---------- */
+  .hud{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    background: var(--paper);
+    border: 1px solid var(--green-deep);
+    border-radius: 12px;
+    padding: 10px 16px;
+    box-shadow: 0 2px 10px var(--shadow);
+  }
+  .stat{display:flex; flex-direction:column; gap:1px;}
+  .stat .label{font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:var(--text-dim);}
+  .stat .value{
+    font-family:'Anton', sans-serif;
+    font-size: 24px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+  }
+  /* Ícones das vidas (escudos). Quando uma vida é perdida, o JS acrescenta
+     a classe "lost", que os torna semi-transparentes e mais pequenos. */
+  .lives{display:flex; gap:4px; align-items:center;}
+  .life{
+    width:16px; height:16px;
+    opacity:1;
+    transition: opacity .25s, transform .25s;
+  }
+  .life.lost{opacity:0.18; transform: scale(0.8);}
+
+  /* ---------- Área do jogo (o "campo" onde tudo acontece) ---------- */
+  .stage-wrap{
+    position:relative;
+    border-radius: 16px;
+    overflow:hidden;
+    box-shadow: 0 8px 28px var(--shadow);
+    border: 1px solid var(--green-deep);
+  }
+
+  /* .stage é o retângulo do relvado. position:relative permite que os
+     elementos filhos (jogador, bolas, cartões...) sejam posicionados
+     com position:absolute dentro dele. */
+  .stage{
+    position:relative;
+    width:100%;
+    aspect-ratio: 3 / 4;
+    background:
+      repeating-linear-gradient(
+        90deg,
+        var(--green) 0px, var(--green) 40px,
+        var(--green-deep) 40px, var(--green-deep) 80px
+      );
+    overflow:hidden;
+    touch-action:none;
+    cursor: none;
+  }
+  /* Brilho subtil no topo do relvado, apenas decorativo. */
+  .stage::before{
+    content:"";
+    position:absolute; inset:0;
+    background: radial-gradient(ellipse at 50% -10%, rgba(255,255,255,0.10), transparent 55%);
+    pointer-events:none;
+  }
+  /* Linhas e círculo do campo de futebol, também só decorativos. */
+  .pitch-line{
+    position:absolute;
+    left:6%; right:6%; top:8%; bottom:8%;
+    border: 2px solid rgba(255,255,255,0.28);
+    border-radius: 4px;
+    pointer-events:none;
+  }
+  .pitch-circle{
+    position:absolute; left:50%; top:50%;
+    width: 26%; aspect-ratio:1;
+    transform:translate(-50%,-50%);
+    border: 2px solid rgba(255,255,255,0.22);
+    border-radius:50%;
+    pointer-events:none;
+  }
+
+  /* Objetos que caem do topo do ecrã: bolas, escudos e cartões vermelhos.
+     São todos criados dinamicamente em JavaScript (ver spawnFaller). */
+  .faller{
+    position:absolute;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    will-change: transform;
+    filter: drop-shadow(0 3px 4px rgba(0,0,0,0.3));
+    user-select:none;
+    pointer-events:none;
+  }
+  .faller.ball{ font-size: 28px; }
+  .faller.badge svg{ width:30px; height:34px; }
+  .faller.card{
+    width: 22px; height: 30px;
+    background: var(--card-red);
+    border-radius: 3px;
+    border: 1.5px solid rgba(255,255,255,0.5);
+  }
+
+  /* Personagem controlada pelo jogador. A posição horizontal é definida
+     via JS através da propriedade "left" (em percentagem). */
+  .player{
+    position:absolute;
+    bottom: 4%;
+    width: 64px;
+    height: 64px;
+    transform: translateX(-50%);
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.35));
+    transition: filter .15s;
+  }
+  .player svg{width:100%; height:100%; display:block;}
+  /* Animação de "abanar" quando o jogador apanha um cartão vermelho. */
+  .player.hit{ animation: shake .35s; }
+  @keyframes shake{
+    0%,100%{transform:translateX(-50%) rotate(0);}
+    25%{transform:translateX(-50%) rotate(-8deg);}
+    75%{transform:translateX(-50%) rotate(8deg);}
+  }
+
+  /* Texto flutuante (ex.: "+1", "+5") que aparece quando se ganham pontos
+     e desaparece a subir, graças à animação floatUp. */
+  .floater{
+    position:absolute;
+    font-family:'Anton', sans-serif;
+    font-size:16px;
+    color: var(--white);
+    text-shadow: 0 2px 4px rgba(0,0,0,0.4);
+    pointer-events:none;
+    animation: floatUp .7s ease-out forwards;
+  }
+  @keyframes floatUp{
+    0%{opacity:1; transform:translateY(0);}
+    100%{opacity:0; transform:translateY(-36px);}
+  }
+
+  /* Ecrãs sobrepostos ao jogo: ecrã inicial ("Pronto para entrar em
+     campo?") e ecrã final ("Fim de jogo"). Cobrem todo o .stage. */
+  .overlay{
+    position:absolute; inset:0;
+    background: linear-gradient(180deg, rgba(5,20,12,0.88), rgba(5,20,12,0.94));
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap: 14px;
+    padding: 24px;
+    text-align:center;
+    color: var(--white);
+  }
+  .overlay .crest{width: 74px; height:82px;}
+  .overlay h2{
+    font-family:'Anton', sans-serif;
+    font-weight:400;
+    font-size: 28px;
+    margin:0;
+    letter-spacing:0.01em;
+  }
+  .overlay p{
+    margin:0;
+    font-size:13px;
+    color: rgba(255,255,255,0.72);
+    max-width: 280px;
+    line-height:1.5;
+  }
+  .overlay .final{
+    font-family:'Anton', sans-serif;
+    font-size:40px;
+    color: #F4D35E;
+  }
+
+  /* Botão dourado usado para "Começar jogo" e "Jogar outra vez". */
+  button.cta{
+    font-family:'Work Sans', sans-serif;
+    font-weight:700;
+    font-size: 14px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    background: var(--gold);
+    color: #241B06;
+    border: none;
+    padding: 12px 28px;
+    border-radius: 999px;
+    cursor: pointer;
+    box-shadow: 0 3px 0 var(--gold-dim);
+    transition: transform .08s, box-shadow .08s;
+  }
+  button.cta:hover{ transform: translateY(1px); box-shadow: 0 2px 0 var(--gold-dim); }
+  button.cta:active{ transform: translateY(3px); box-shadow: 0 0 0 var(--gold-dim); }
+  button.cta:focus-visible{ outline: 3px solid var(--focus); outline-offset: 2px; }
+
+  /* Botões "◀" e "▶" para mover o jogador em ecrãs táteis (telemóvel). */
+  .touch-controls{
+    display:flex;
+    gap:10px;
+  }
+  .touch-controls button{
+    flex:1;
+    padding: 14px;
+    font-size: 20px;
+    border-radius: 12px;
+    border: 1px solid var(--green-deep);
+    background: var(--paper);
+    color: var(--green);
+    cursor:pointer;
+  }
+  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .touch-controls button{color:#4FCB84;}}
+  :root[data-theme="dark"] .touch-controls button{color:#4FCB84;}
+  .touch-controls button:focus-visible{ outline: 3px solid var(--focus); outline-offset: 2px; }
+  .touch-controls button:active{ background: var(--cream); }
+
+  footer{
+    text-align:center;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  /* Em ecrãs largos (computador) escondem-se os botões táteis, porque
+     o jogador já pode usar o teclado. */
+  @media (min-width: 700px){
+    .touch-controls{ display:none; }
+  }
+
+  /* Respeita utilizadores que pediram "reduzir movimento" nas
+     definições de acessibilidade do sistema: desliga as animações. */
+  @media (prefers-reduced-motion: reduce){
+    .player.hit{ animation:none; }
+    .floater{ animation:none; opacity:0; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Título e descrição do jogo -->
+  <header>
+    <div class="eyebrow">Sporting Clube de Portugal · fã-jogo não oficial</div>
+    <h1>Leões em Campo</h1>
+    <div class="sub">Apanha as bolas, junta os escudos, foge dos cartões vermelhos.</div>
+  </header>
+
+  <!-- Painel de estado do jogo: pontos atuais, vidas restantes e recorde.
+       Os valores dentro dos <span id="..."> são atualizados pelo JavaScript. -->
+  <div class="hud">
+    <div class="stat">
+      <span class="label">Pontos</span>
+      <span class="value" id="score">0</span>
+    </div>
+    <div class="lives" id="lives"></div>
+    <div class="stat" style="align-items:flex-end;">
+      <span class="label">Recorde</span>
+      <span class="value" id="best">0</span>
+    </div>
+  </div>
+
+  <!-- Área onde o jogo decorre -->
+  <div class="stage-wrap">
+    <div class="stage" id="stage">
+      <!-- Linhas do campo, apenas decoração -->
+      <div class="pitch-line"></div>
+      <div class="pitch-circle"></div>
+
+      <!-- Personagem (leão) controlada pelo jogador. A posição "left"
+           é atualizada pela função setPlayerX() no JavaScript. -->
+      <div class="player" id="player" style="left:50%;">
+        <svg viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg">
+          <path d="M50 2 L94 16 V52 C94 82 74 100 50 108 C26 100 6 82 6 52 V16 Z" fill="#0E7A3D"/>
+          <path d="M50 2 L94 16 V52 C94 82 74 100 50 108 Z" fill="#FBFBF7"/>
+          <path d="M50 2 L94 16 V52 C94 82 74 100 50 108 L50 2" fill="none"/>
+          <path d="M50 2 L94 16 V52 C94 82 74 100 50 108 C26 100 6 82 6 52 V16 Z" fill="none" stroke="#C9A24B" stroke-width="4"/>
+          <g transform="translate(50 56)" fill="#C9A24B">
+            <ellipse cx="0" cy="0" rx="26" ry="22"/>
+            <circle cx="-14" cy="-16" r="9"/>
+            <circle cx="14" cy="-16" r="9"/>
+            <path d="M-20 8 Q0 26 20 8 Q0 34 -20 8 Z" fill="#8a6d2e"/>
+          </g>
+          <g fill="#0A1F13">
+            <circle cx="42" cy="52" r="3.4"/>
+            <circle cx="58" cy="52" r="3.4"/>
+            <path d="M46 64 Q50 68 54 64 Q50 70 46 64 Z"/>
+          </g>
+        </svg>
+      </div>
+
+      <!-- Ecrã inicial, mostrado antes de o jogo começar.
+           É escondido (display:none) quando o botão "Começar jogo" é clicado. -->
+      <div class="overlay" id="startOverlay">
+        <svg class="crest" viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg">
+          <path d="M50 2 L94 16 V52 C94 82 74 100 50 108 C26 100 6 82 6 52 V16 Z" fill="#0E7A3D"/>
+          <path d="M50 2 L94 16 V52 C94 82 74 100 50 108 Z" fill="#FBFBF7"/>
+          <path d="M50 2 L94 16 V52 C94 82 74 100 50 108 C26 100 6 82 6 52 V16 Z" fill="none" stroke="#C9A24B" stroke-width="4"/>
+          <g transform="translate(50 56)" fill="#C9A24B">
+            <ellipse cx="0" cy="0" rx="26" ry="22"/>
+            <circle cx="-14" cy="-16" r="9"/>
+            <circle cx="14" cy="-16" r="9"/>
+            <path d="M-20 8 Q0 26 20 8 Q0 34 -20 8 Z" fill="#8a6d2e"/>
+          </g>
+        </svg>
+        <h2>Pronto para MARTELAR em campo?</h2>
+        <p>Usa as setas ou A/D para mover o leão. Em telemóvel, arrasta o dedo ou usa os botões abaixo. Bolas valem pontos, escudos valem mais, cartões vermelhos custam uma vida.</p>
+        <button class="cta" id="startBtn">Começar jogo</button>
+      </div>
+
+      <!-- Ecrã final, escondido por defeito (style="display:none").
+           É mostrado pela função endGame() quando as vidas chegam a 0. -->
+      <div class="overlay" id="endOverlay" style="display:none;">
+        <h2 id="endTitle">Fim de jogo</h2>
+        <div class="final" id="finalScore">0</div>
+        <p id="endMsg">Pontos marcados nesta partida.</p>
+        <button class="cta" id="restartBtn">Jogar outra vez</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Botões para mover o jogador em ecrãs táteis (escondidos em ecrãs largos) -->
+  <div class="touch-controls">
+    <button id="leftBtn" aria-label="Mover para a esquerda">◀</button>
+    <button id="rightBtn" aria-label="Mover para a direita">▶</button>
+  </div>
+
+  <footer>Jogo de fãs, criado por diversão — sem ligação oficial ao Sporting Clube de Portugal.</footer>
+</div>
+
+<script>
+/* ==========================================================
+   TODA A LÓGICA DO JOGO
+   Está envolvida numa "IIFE" — function(){ ... }() — que é
+   executada imediatamente. Isto evita que as variáveis e
+   funções aqui dentro poluam o espaço global (window).
+   ========================================================== */
+(function(){
+
+  /* ---------- Referências aos elementos HTML ----------
+     document.getElementById procura, no HTML acima, o elemento
+     com o "id" indicado, para podermos ler/alterar o seu conteúdo
+     a partir do JavaScript. */
+  const stage = document.getElementById('stage');
+  const player = document.getElementById('player');
+  const scoreEl = document.getElementById('score');
+  const bestEl = document.getElementById('best');
+  const livesEl = document.getElementById('lives');
+  const startOverlay = document.getElementById('startOverlay');
+  const endOverlay = document.getElementById('endOverlay');
+  const startBtn = document.getElementById('startBtn');
+  const restartBtn = document.getElementById('restartBtn');
+  const endTitle = document.getElementById('endTitle');
+  const finalScore = document.getElementById('finalScore');
+  const leftBtn = document.getElementById('leftBtn');
+  const rightBtn = document.getElementById('rightBtn');
+
+  /* Código SVG (em texto) de um ícone de "vida" (escudo com carinha).
+     É reutilizado várias vezes na função renderLives(). */
+  const LIFE_SVG = '<svg viewBox="0 0 24 24" class="life" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" fill="#C9A24B"/><circle cx="8" cy="9" r="2.4" fill="#0A1F13"/><circle cx="16" cy="9" r="2.4" fill="#0A1F13"/><path d="M6 15 Q12 20 18 15 Q12 23 6 15 Z" fill="#0A1F13"/></svg>';
+
+  /* ---------- Estado do jogo ----------
+     Estas variáveis guardam a "memória" do jogo: quantos pontos há,
+     quantas vidas restam, se o jogo está a correr, etc. São
+     alteradas ao longo do tempo pelas funções abaixo. */
+  const MAX_LIVES = 3;
+  let lives = MAX_LIVES;
+  let score = 0;
+  // Lê o recorde guardado no navegador (localStorage), ou 0 se não existir.
+  let best = Number(localStorage.getItem('leoes_best') || 0);
+  bestEl.textContent = best;
+
+  let playerX = 50;       // posição horizontal do jogador, em % (0 a 100)
+  let playerVX = 0;        // velocidade horizontal atual do jogador
+  const PLAYER_SPEED = 0.9;
+  let keys = { left:false, right:false }; // que teclas estão premidas
+
+  let running = false;     // true enquanto o jogo está ativo
+  let fallers = [];        // lista de objetos que estão a cair (bolas/escudos/cartões)
+  let spawnTimer = 0;      // tempo desde o último objeto criado
+  let spawnInterval = 1100; // tempo (ms) entre a criação de objetos
+  let elapsed = 0;         // tempo total decorrido desde o início do jogo
+  let lastTime = null;     // timestamp do frame anterior (usado para calcular dt)
+  let rafId = null;        // id devolvido por requestAnimationFrame, para poder cancelar
+  let combo = 0;           // nº de apanhas seguidas, usado para bónus de pontos
+
+  /* Desenha os ícones de vida no HUD: um cheio por cada vida restante,
+     e um "apagado" (classe "lost") por cada vida já perdida. */
+  function renderLives(){
+    let html = '';
+    for(let i=0;i<MAX_LIVES;i++){
+      html += i < lives ? LIFE_SVG : LIFE_SVG.replace('class="life"','class="life lost"');
+    }
+    livesEl.innerHTML = html;
+  }
+  renderLives();
+
+  // Devolve o tamanho e posição atuais do "stage" (área do jogo) no ecrã.
+  function stageRect(){ return stage.getBoundingClientRect(); }
+
+  /* Move o jogador para a posição horizontal px (em %), sem deixar
+     que ele saia da área jogável (entre 6% e 94%). */
+  function setPlayerX(px){
+    playerX = Math.max(6, Math.min(94, px));
+    player.style.left = playerX + '%';
+  }
+
+  /* Cria um novo objeto a cair (bola, escudo ou cartão vermelho) numa
+     posição horizontal aleatória, e adiciona-o à lista "fallers". */
+  function spawnFaller(){
+    // Sorteia o tipo de objeto: 60% bola, 22% escudo, 18% cartão.
+    const r = Math.random();
+    let type;
+    if(r < 0.60) type = 'ball';
+    else if(r < 0.82) type = 'badge';
+    else type = 'card';
+
+    const el = document.createElement('div');
+    el.className = 'faller ' + type;
+    const x = 8 + Math.random() * 84; // posição horizontal aleatória
+    el.style.left = x + '%';
+    el.style.top = '-40px'; // começa fora do ecrã, por cima
+
+    if(type === 'ball'){
+      el.textContent = '⚽';
+    } else if(type === 'badge'){
+      el.innerHTML = '<svg viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg"><path d="M50 2 L94 16 V52 C94 82 74 100 50 108 C26 100 6 82 6 52 V16 Z" fill="#0E7A3D"/><path d="M50 2 L94 16 V52 C94 82 74 100 50 108 Z" fill="#FBFBF7"/><path d="M50 2 L94 16 V52 C94 82 74 100 50 108 C26 100 6 82 6 52 V16 Z" fill="none" stroke="#C9A24B" stroke-width="6"/></svg>';
+    }
+    // (para type === 'card' não é preciso conteúdo: o retângulo vermelho é feito por CSS)
+
+    stage.appendChild(el);
+    // Velocidade de queda: aumenta ligeiramente quanto mais tempo o jogo dura.
+    const speed = 90 + Math.random() * 40 + Math.min(elapsed / 1000, 60);
+    fallers.push({ el, type, x, y: -40, speed });
+  }
+
+  /* Mostra um texto pequeno (ex.: "+1") que sobe e desaparece,
+     usado para dar feedback visual quando se ganham pontos. */
+  function popFloater(text, xPercent, yPx){
+    const f = document.createElement('div');
+    f.className = 'floater';
+    f.textContent = text;
+    f.style.left = xPercent + '%';
+    f.style.top = yPx + 'px';
+    stage.appendChild(f);
+    // Remove o elemento do ecrã 720ms depois (quando a animação já terminou).
+    setTimeout(() => f.remove(), 720);
+  }
+
+  /* Chamada quando o jogador apanha um cartão vermelho: perde uma vida,
+     reinicia o combo e faz o jogador "abanar". Se as vidas chegarem a 0,
+     termina o jogo. */
+  function loseLife(){
+    lives--;
+    combo = 0;
+    renderLives();
+    // Retira e volta a pôr a classe "hit" para forçar a animação a repetir-se
+    // mesmo que já estivesse presente (o offsetWidth "força" o browser a
+    // recalcular o layout antes de reaplicar a classe).
+    player.classList.remove('hit');
+    void player.offsetWidth;
+    player.classList.add('hit');
+    if(lives <= 0){
+      endGame();
+    }
+  }
+
+  /* Termina o jogo: pára o loop de animação, limpa os objetos a cair,
+     atualiza o recorde se necessário, e mostra o ecrã final. */
+  function endGame(){
+    running = false;
+    cancelAnimationFrame(rafId);
+    fallers.forEach(f => f.el.remove());
+    fallers = [];
+    if(score > best){
+      best = score;
+      // Guarda o novo recorde no navegador, para persistir entre visitas.
+      localStorage.setItem('leoes_best', String(best));
+      bestEl.textContent = best;
+      endTitle.textContent = 'Novo recorde!';
+    } else {
+      endTitle.textContent = 'Fim de jogo';
+    }
+    finalScore.textContent = score;
+    endOverlay.style.display = 'flex';
+  }
+
+  /* ---------- Loop principal do jogo ----------
+     Esta função corre repetidamente (uma vez por frame) enquanto
+     running === true, através de requestAnimationFrame. "ts" é o
+     timestamp atual fornecido pelo browser. */
+  function tick(ts){
+    if(!running) return;
+    if(lastTime === null) lastTime = ts;
+    // dt = tempo (ms) desde o frame anterior, limitado a 40ms para evitar
+    // "saltos" grandes se o browser ficar momentaneamente sem resposta.
+    const dt = Math.min(ts - lastTime, 40);
+    lastTime = ts;
+    elapsed += dt;
+
+    // Move o jogador consoante as teclas premidas (com um travão suave
+    // quando nenhuma tecla está premida, multiplicando a velocidade por 0.8).
+    if(keys.left) playerVX = -PLAYER_SPEED;
+    else if(keys.right) playerVX = PLAYER_SPEED;
+    else playerVX *= 0.8;
+    if(Math.abs(playerVX) > 0.01){
+      setPlayerX(playerX + playerVX * (dt / 16));
+    }
+
+    // Cria novos objetos a cair de tempos a tempos; o intervalo entre
+    // criações vai diminuindo à medida que o tempo passa (fica mais difícil).
+    spawnTimer += dt;
+    spawnInterval = Math.max(480, 1100 - elapsed / 40);
+    if(spawnTimer > spawnInterval){
+      spawnTimer = 0;
+      spawnFaller();
+    }
+
+    const rect = stageRect();
+    const stageH = rect.height;
+    const playerBandTop = stageH * 0.86; // "faixa" perto do fundo, onde o jogador pode apanhar objetos
+
+    // Percorre todos os objetos a cair, de trás para a frente da lista
+    // (para poder remover elementos com splice sem baralhar os índices seguintes).
+    for(let i = fallers.length - 1; i >= 0; i--){
+      const f = fallers[i];
+      f.y += f.speed * (dt / 1000); // atualiza a posição vertical
+      f.el.style.top = f.y + 'px';
+
+      // Verifica se o objeto está à altura do jogador e perto o suficiente
+      // horizontalmente (colisão simples por distância).
+      if(f.y >= playerBandTop && f.y <= stageH){
+        const dx = Math.abs(f.x - playerX);
+        if(dx < 9){
+          if(f.type === 'card'){
+            loseLife();
+          } else if(f.type === 'ball'){
+            combo++;
+            const gain = 1 + Math.floor(combo / 6); // combos maiores dão mais pontos
+            score += gain;
+            popFloater('+' + gain, f.x, f.y - 10);
+          } else if(f.type === 'badge'){
+            combo++;
+            score += 5;
+            popFloater('+5', f.x, f.y - 10);
+          }
+          scoreEl.textContent = score;
+          f.el.remove();
+          fallers.splice(i, 1);
+          continue; // já foi apanhado, passa ao próximo objeto
+        }
+      }
+
+      // Se o objeto saiu do ecrã por baixo sem ser apanhado, remove-o.
+      // Perder uma bola/escudo reinicia o combo; perder um cartão não conta.
+      if(f.y > stageH + 20){
+        if(f.type !== 'card') combo = 0;
+        f.el.remove();
+        fallers.splice(i, 1);
+      }
+    }
+
+    // Pede ao browser para chamar tick() outra vez no próximo frame.
+    rafId = requestAnimationFrame(tick);
+  }
+
+  /* Reinicia todo o estado do jogo e arranca o loop principal (tick).
+     É chamada tanto pelo botão "Começar jogo" como por "Jogar outra vez". */
+  function startGame(){
+    score = 0;
+    lives = MAX_LIVES;
+    elapsed = 0;
+    spawnTimer = 0;
+    combo = 0;
+    lastTime = null;
+    scoreEl.textContent = '0';
+    renderLives();
+    fallers.forEach(f => f.el.remove());
+    fallers = [];
+    setPlayerX(50);
+    startOverlay.style.display = 'none';
+    endOverlay.style.display = 'none';
+    running = true;
+    rafId = requestAnimationFrame(tick);
+  }
+
+  // Liga os botões de início/reinício à função startGame.
+  startBtn.addEventListener('click', startGame);
+  restartBtn.addEventListener('click', startGame);
+
+  /* ---------- Controlo por teclado ----------
+     Ao premir uma tecla de mover, marca-se "true" em keys.left/right;
+     ao largar, volta a "false". O movimento em si acontece no tick(). */
+  window.addEventListener('keydown', (e) => {
+    if(e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = true;
+    if(e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
+  });
+  window.addEventListener('keyup', (e) => {
+    if(e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
+    if(e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+  });
+
+  /* ---------- Controlo pelos botões táteis (◀ ▶) ----------
+     Funciona da mesma forma que o teclado: prime = true, larga = false. */
+  function pressStart(dir){ keys[dir] = true; }
+  function pressEnd(dir){ keys[dir] = false; }
+  ['mousedown','touchstart'].forEach(ev => {
+    leftBtn.addEventListener(ev, (e) => { e.preventDefault(); pressStart('left'); });
+    rightBtn.addEventListener(ev, (e) => { e.preventDefault(); pressStart('right'); });
+  });
+  ['mouseup','mouseleave','touchend','touchcancel'].forEach(ev => {
+    leftBtn.addEventListener(ev, () => pressEnd('left'));
+    rightBtn.addEventListener(ev, () => pressEnd('right'));
+  });
+
+  /* ---------- Controlo por arrastar o dedo/rato no campo ----------
+     Permite mover o jogador diretamente para onde se toca/arrasta. */
+  let dragging = false;
+  // Converte a posição do clique/toque em percentagem horizontal dentro do stage.
+  function xFromEvent(e){
+    const rect = stageRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    return ((clientX - rect.left) / rect.width) * 100;
+  }
+  stage.addEventListener('pointerdown', (e) => { dragging = true; setPlayerX(xFromEvent(e)); });
+  stage.addEventListener('pointermove', (e) => { if(dragging) setPlayerX(xFromEvent(e)); });
+  window.addEventListener('pointerup', () => { dragging = false; });
+  // Evita que o ecrã faça scroll enquanto se arrasta o dedo dentro do jogo.
+  stage.addEventListener('touchmove', (e) => { if(e.touches.length) { e.preventDefault(); setPlayerX(xFromEvent(e)); } }, { passive:false });
+
+})();
+</script>
+</body>
+</html>
